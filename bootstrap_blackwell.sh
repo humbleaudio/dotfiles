@@ -99,7 +99,7 @@ fi
 mkdir -p "$HOME/git"
 if [ ! -d "$HOME/git/blackwell" ]; then
   echo "[bootstrap] Cloning humbleaudio/blackwell into ~/git/blackwell..."
-  git clone https://github.com/humbleaudio/blackwell.git "$HOME/git/blackwell"
+  git clone git@github.com:humbleaudio/blackwell.git "$HOME/git/blackwell"
 else
   echo "[bootstrap] Repo ~/git/blackwell already exists, pulling latest..."
   git -C "$HOME/git/blackwell" pull --ff-only || true
