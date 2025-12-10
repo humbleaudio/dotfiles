@@ -77,26 +77,44 @@ EOF
 echo "[bootstrap] Wrote ~/.zshrc"
 
 # ----------------------------
-# 5. Symlink ~/.p10k.zsh from dotfiles
+# 5. Clone dotfiles and symlink ~/.p10k.zsh
 # ----------------------------
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
-DOT_P10K="$SCRIPT_DIR/dot-p10k.zsh"
+mkdir -p "$HOME/git"
+
+if [ ! -d "$HOME/git/dotfiles" ]; then
+  echo "[bootstrap] Cloning humbleaudio/dotfiles into ~/git/dotfiles..."
+  git clone git@github.com:humbleaudio/dotfiles.git "$HOME/git/dotfiles"
+else
+  echo "[bootstrap] Repo ~/git/dotfiles already exists, pulling latest..."
+  git -C "$HOME/git/dotfiles" pull --ff-only || true
+fi
+
+DOT_P10K="$HOME/git/dotfiles/dot-p10k.zsh"
 
 if [ -f "$DOT_P10K" ]; then
   if [ -f "$HOME/.p10k.zsh" ] || [ -L "$HOME/.p10k.zsh" ]; then
-    echo "[bootstrap] Backing up existing .p10k.zsh..."
-    mv "$HOME/.p10k.zsh" "$HOME/.p10k.zsh.backup.$(date +%s)"
+    # Check if it's already the correct symlink
+    if [ "$(readlink "$HOME/.p10k.zsh")" != "$DOT_P10K" ]; then
+      echo "[bootstrap] Backing up existing .p10k.zsh..."
+      mv "$HOME/.p10k.zsh" "$HOME/.p10k.zsh.backup.$(date +%s)"
+    fi
   fi
-  echo "[bootstrap] Symlinking $DOT_P10K -> ~/.p10k.zsh"
-  ln -sf "$DOT_P10K" "$HOME/.p10k.zsh"
+
+  # Only link if not already linked correctly (or if we just moved the old one)
+  if [ "$(readlink "$HOME/.p10k.zsh")" != "$DOT_P10K" ]; then
+    echo "[bootstrap] Symlinking $DOT_P10K -> ~/.p10k.zsh"
+    ln -sf "$DOT_P10K" "$HOME/.p10k.zsh"
+  else
+     echo "[bootstrap] .p10k.zsh is already correctly symlinked."
+  fi
 else
-  echo "[bootstrap] Warning: $DOT_P10K not found in script directory. Skipping p10k setup."
+  echo "[bootstrap] Warning: $DOT_P10K not found. Skipping p10k setup."
 fi
 
 # ----------------------------
 # 6. Clone your Blackwell repo into ~/git/blackwell
 # ----------------------------
-mkdir -p "$HOME/git"
+# mkdir -p "$HOME/git" # Created in step 5
 if [ ! -d "$HOME/git/blackwell" ]; then
   echo "[bootstrap] Cloning humbleaudio/blackwell into ~/git/blackwell..."
   git clone git@github.com:humbleaudio/blackwell.git "$HOME/git/blackwell"
