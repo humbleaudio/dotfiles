@@ -141,16 +141,21 @@ fi
 if [ -n "${TS_AUTHKEY}" ]; then
   echo "[bootstrap] Starting Tailscale..."
 
-  # Ensure tailscaled daemon is running (RunPod containers often lack systemd)
+  # Ensure tailscaled daemon is running
   if ! pgrep tailscaled >/dev/null; then
     echo "[bootstrap] tailscaled not running. Starting in background..."
-    if command -v systemctl >/dev/null && systemctl is-system-running &>/dev/null; then
+    
+    # Check for /dev/net/tun support (missing in unprivileged containers like RunPod)
+    if [ ! -c /dev/net/tun ]; then
+      echo "[bootstrap] /dev/net/tun not found. using --tun=userspace-networking"
+      sudo tailscaled --tun=userspace-networking >/tmp/tailscaled.log 2>&1 &
+    elif command -v systemctl >/dev/null && systemctl is-system-running &>/dev/null; then
       sudo systemctl start tailscaled
     else
-      # Start manually if no systemd
-      sudo tailscaled >/dev/null 2>&1 &
-      sleep 5
+      # Start manually if no systemd but tun exists
+      sudo tailscaled >/tmp/tailscaled.log 2>&1 &
     fi
+    sleep 5
   fi
 
   # 'sudo' might be implicit in root environments, but good to keep if user is non-root sudoer

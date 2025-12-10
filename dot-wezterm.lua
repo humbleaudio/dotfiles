@@ -84,26 +84,25 @@ wezterm.on('gui-startup', function(cmd)
   --  - Bottom-right: ssh runpod
   --------------------------------------------------------
   do
-    port = '29257'
     -- Big left pane (ssh runpod)
     local tab, main_pane, window = mux.spawn_window {
-      workspace = 'runpod',
+      workspace = 'runpod-blackwell',
       cwd = wezterm.home_dir,
-      args = { 'ssh', 'RunPod', '-A' },
+      args = { 'ssh', 'runpod-blackwell', '-A' },
     }
 
     -- Top-right pane (ssh runpod)
     local right = main_pane:split {
       direction = 'Right',
       size = 0.33,                -- ~1/3 width on the right
-      args = { 'ssh', 'RunPod', '-A' },
+      args = { 'ssh', 'runpod-blackwell', '-A' },
     }
 
     -- Bottom-right pane (ssh runpod)
     local bottom_right = right:split {
       direction = 'Bottom',       -- IMPORTANT: "Bottom", not "Down"
       size = 0.5,                 -- half of the right column
-      args = { 'ssh', 'RunPod', '-A' },
+      args = { 'ssh', 'runpod-blackwell', '-A' },
     }
 
     -- Start GPU stats in top-right
