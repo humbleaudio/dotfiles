@@ -140,6 +140,19 @@ fi
 
 if [ -n "${TS_AUTHKEY}" ]; then
   echo "[bootstrap] Starting Tailscale..."
+
+  # Ensure tailscaled daemon is running (RunPod containers often lack systemd)
+  if ! pgrep tailscaled >/dev/null; then
+    echo "[bootstrap] tailscaled not running. Starting in background..."
+    if command -v systemctl >/dev/null && systemctl is-system-running &>/dev/null; then
+      sudo systemctl start tailscaled
+    else
+      # Start manually if no systemd
+      sudo tailscaled >/dev/null 2>&1 &
+      sleep 5
+    fi
+  fi
+
   # 'sudo' might be implicit in root environments, but good to keep if user is non-root sudoer
   sudo tailscale up \
     --authkey="${TS_AUTHKEY}" \
