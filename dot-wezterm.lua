@@ -43,79 +43,8 @@ wezterm.on('gui-startup', function(cmd)
   --  - Top-right: ssh apollo + gpustat
   --  - Bottom-right: ssh apollo
   --------------------------------------------------------
-  do
-    -- Big left pane (ssh apollo)
-    local tab, main_pane, window = mux.spawn_window {
-      workspace = 'apollo',
-      cwd = wezterm.home_dir,
-      args = { 'ssh', 'apollo', '-A' },
-    }
-
-    -- Top-right pane (ssh apollo)
-    local right = main_pane:split {
-      direction = 'Right',
-      size = 0.33,                -- ~1/3 width on the right
-      args = { 'ssh', 'apollo', '-A' },
-    }
-
-    -- Bottom-right pane (ssh apollo)
-    local bottom_right = right:split {
-      direction = 'Bottom',       -- IMPORTANT: "Bottom", not "Down"
-      size = 0.5,                 -- half of the right column
-      args = { 'ssh', 'apollo', '-A' },
-    }
-
-    -- Start GPU stats in top-right
-    right:send_text('watch -n0.2 gpustat --color\n')
-
-    -- Optional: cd into project directory on apollo
-    main_pane:send_text('cd ~/git/blackwell\n')
-    bottom_right:send_text('cd ~/git/blackwell\n')
-
-    -- clear the screen
-    main_pane:send_text('clear\n')
-    bottom_right:send_text('clear\n')
-  end
-
-    --------------------------------------------------------
-  -- Workspace: "runpod" (remote GPU box)
-  --  - Left: ssh runpod
-  --  - Top-right: ssh runpod + gpustat
-  --  - Bottom-right: ssh runpod
-  --------------------------------------------------------
-  do
-    -- Big left pane (ssh runpod)
-    local tab, main_pane, window = mux.spawn_window {
-      workspace = 'runpod-blackwell',
-      cwd = wezterm.home_dir,
-      args = { 'ssh', 'runpod-blackwell', '-A' },
-    }
-
-    -- Top-right pane (ssh runpod)
-    local right = main_pane:split {
-      direction = 'Right',
-      size = 0.33,                -- ~1/3 width on the right
-      args = { 'ssh', 'runpod-blackwell', '-A' },
-    }
-
-    -- Bottom-right pane (ssh runpod)
-    local bottom_right = right:split {
-      direction = 'Bottom',       -- IMPORTANT: "Bottom", not "Down"
-      size = 0.5,                 -- half of the right column
-      args = { 'ssh', 'runpod-blackwell', '-A' },
-    }
-
-    -- Start GPU stats in top-right
-    right:send_text('watch -n0.2 gpustat --color\n')
-
-    -- Optional: cd into project directory on runpod
-    main_pane:send_text('cd  ~/git/blackwell\n')
-    bottom_right:send_text('cd ~/git/blackwell\n')
-
-    -- clear the screen
-    main_pane:send_text('clear\n')
-    bottom_right:send_text('clear\n')
-  end
+  -- Removed static startup logic for apollo.
+  -- See keybinding 'A' to launch it on demand.
 
   -- Start focused on the "local" workspace
   mux.set_active_workspace 'local'
@@ -136,11 +65,158 @@ config.harfbuzz_features = { "calt=0", "clig=0", "liga=0" }
 local act = wezterm.action
 
 config.keys = {
-  -- Workspace switching
-  { key = '1', mods = 'CMD',        action = act.SwitchToWorkspace { name = 'local' } },
-  { key = '2', mods = 'CMD',        action = act.SwitchToWorkspace { name = 'apollo' } },
-  { key = '3', mods = 'CMD',        action = act.SwitchToWorkspace { name = 'runpod' } },
-  { key = 'N', mods = 'CMD|SHIFT',  action = act.ShowLauncherArgs { flags = 'WORKSPACES' } },
+  -- Prompt for RunPod IP and PORT
+  {
+    key = 'P',
+    mods = 'CMD|SHIFT',
+    action = act.PromptInputLine {
+      description = 'Enter RunPod Address (IP:PORT)',
+      action = wezterm.action_callback(function(window, pane, line)
+        if line then
+          -- Trim whitespace
+          line = line:gsub("%s+", "")
+          local ip, port = line:match("^(%S+):(%d+)$")
+          if not ip or not port then
+            wezterm.log_info("Invalid format. Use IP:PORT")
+            return
+          end
+
+          local workspace_name = 'runpod-' .. ip
+          local ssh_runpod_args = { 'ssh', '-A', '-p', port, 'root@' .. ip }
+          
+          -- SSH into local GPU Dev Container (12.8 -> Port 22128)
+          local local_gpu_dev_args = { 'ssh', '-p', '22128', 'willstockwell@localhost', '-A' }
+
+          -- Create workspace
+          -- Left Pane: Local GPU Dev Container (SSH)
+          local tab, main_pane, window = mux.spawn_window {
+            workspace = workspace_name,
+            cwd = wezterm.home_dir,
+            args = local_gpu_dev_args,
+          }
+
+          -- Top-right pane: RunPod GPU Stats
+          local right = main_pane:split {
+            direction = 'Right',
+            size = 0.33,
+            args = ssh_runpod_args,
+          }
+
+          -- Bottom-right pane: RunPod Shell
+          local bottom_right = right:split {
+            direction = 'Bottom',
+            size = 0.5,
+            args = ssh_runpod_args,
+          }
+
+          -- Start GPU stats in top-right
+          right:send_text('watch -n0.2 ~/.local/bin/gpustat --color\n')
+
+          -- clear the screen
+          main_pane:send_text('clear\n')
+          bottom_right:send_text('clear\n')
+
+          -- Switch to the new workspace
+          mux.set_active_workspace(workspace_name)
+        end
+      end),
+    },
+  },
+
+  -- Launch Apollo Workspace (CMD+SHIFT+A)
+  {
+    key = 'A',
+    mods = 'CMD|SHIFT',
+    action = wezterm.action_callback(function(window, pane)
+      local workspace_name = 'apollo'
+      local ssh_args = { 'ssh', 'apollo', '-A' }
+
+      -- Check if workspace already exists
+      -- (Note: minimal API doesn't easily list workspaces, so we just spawn.
+      --  If it exists, you'd usually switch to it, but spawn_window creates a NEW one or adds to it.
+      --  For simplicity, we'll just create a new window in that workspace.)
+      
+      -- Big left pane
+      local tab, main_pane, window = mux.spawn_window {
+        workspace = workspace_name,
+        cwd = wezterm.home_dir,
+        args = ssh_args,
+      }
+      
+      -- Top-right pane
+      local right = main_pane:split {
+        direction = 'Right',
+        size = 0.33,
+        args = ssh_args,
+      }
+      
+      -- Bottom-right pane
+      local bottom_right = right:split {
+        direction = 'Bottom',
+        size = 0.5,
+        args = ssh_args,
+      }
+      
+      -- Start GPU stats
+      right:send_text('watch -n0.2 gpustat --color\n')
+      
+      -- Optional: cd into project
+      main_pane:send_text('cd ~/git/blackwell\n')
+      bottom_right:send_text('cd ~/git/blackwell\n')
+      
+      -- Clear screen
+      main_pane:send_text('clear\n')
+      bottom_right:send_text('clear\n')
+
+      -- Switch to it
+      mux.set_active_workspace(workspace_name)
+    end),
+  },
+
+  -- Workspace switching (CMD+1..9)
+  { key = '1', mods = 'CMD', action = act.SwitchToWorkspace { name = 'local' } },
+  -- For other workspaces, we rely on the order they appear in the switcher or cycle through them
+  -- But to explicitly map 2..9 to "next available workspaces", we'd need dynamic logic which is complex in config.
+  -- Instead, standard practice is:
+  -- CMD+1: local
+  -- CMD+2: apollo (if active)
+  -- CMD+3...: runpods
+  
+  -- Let's map CMD+1..9 to "SwitchToWorkspace index=N" logic requires WezTerm nightly or complex callback.
+  -- Simpler: Use "ShowLauncher" for list, or "SwitchWorkspaceRelative".
+  
+  -- Actually, let's just map CMD+1..9 to the built-in workspace switcher slots if possible,
+  -- OR map them to specific names if you know them.
+  -- Since names are dynamic (runpod-IP), we can't hardcode CMD+3 to a specific IP.
+
+  -- BEST APPROACH: Map CMD+1..9 to "activate workspace by relative index"
+  -- (WezTerm doesn't have a direct "activate workspace N" action by default for dynamic lists).
+  
+  -- Alternative: Use the "ShowLauncher" (CMD+Shift+N) which lists them.
+  
+  -- However, user asked for "CMD-1..X to access in order".
+  -- We can try mapping them to a callback that finds the Nth workspace.
+  { key = '1', mods = 'CMD', action = wezterm.action_callback(function(win, pane) win:perform_action(act.SwitchToWorkspace{name='local'}, pane) end) },
+  { key = '2', mods = 'CMD', action = wezterm.action_callback(function(win, pane) 
+      local workspaces = mux.get_workspace_names()
+      table.sort(workspaces) -- Ensure consistent order (alphanumeric usually)
+      -- 'local' is usually first or we can filter.
+      -- Let's just switch to the 2nd one in the sorted list.
+      if workspaces[2] then win:perform_action(act.SwitchToWorkspace{name=workspaces[2]}, pane) end
+    end) 
+  },
+  { key = '3', mods = 'CMD', action = wezterm.action_callback(function(win, pane) 
+      local workspaces = mux.get_workspace_names()
+      table.sort(workspaces)
+      if workspaces[3] then win:perform_action(act.SwitchToWorkspace{name=workspaces[3]}, pane) end
+    end) 
+  },
+  { key = '4', mods = 'CMD', action = wezterm.action_callback(function(win, pane) 
+      local workspaces = mux.get_workspace_names()
+      table.sort(workspaces)
+      if workspaces[4] then win:perform_action(act.SwitchToWorkspace{name=workspaces[4]}, pane) end
+    end) 
+  },
 
   { key = '1', mods = 'ALT', action = act.ActivatePaneByIndex(0) },
   { key = '2', mods = 'ALT', action = act.ActivatePaneByIndex(1) },
