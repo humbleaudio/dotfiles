@@ -140,6 +140,18 @@ install_essential_apps() {
 
   echo "[bootstrap] Checking essential apps..."
 
+  # Cursor
+  if brew list --cask cursor &> /dev/null; then
+    echo "[bootstrap] ✓ Cursor is already installed"
+  else
+    echo "[bootstrap] Installing Cursor..."
+    if brew install --cask cursor; then
+      echo "[bootstrap] ✓ Cursor installed"
+    else
+      echo "[bootstrap] ⚠ Failed to install Cursor"
+    fi
+  fi
+
   # WezTerm
   if brew list --cask wezterm &> /dev/null; then
     echo "[bootstrap] ✓ WezTerm is already installed"
